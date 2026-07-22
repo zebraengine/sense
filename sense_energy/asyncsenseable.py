@@ -249,6 +249,7 @@ class ASyncSenseable(SenseableBase):
     async def get_trend_data(self, scale: Scale, dt: datetime = None) -> None:
         """Update trend data for specified scale from API.
         Optionally set a date to fetch data from."""
+        historical = dt is not None
         if not dt:
             dt = datetime.now(timezone.utc)
         
@@ -271,7 +272,7 @@ class ASyncSenseable(SenseableBase):
         
         # Transform to legacy format for backward compatibility
         self._trend_data[scale] = self._transform_usage_response(usage_data, solar_data)
-        self._update_device_trends(scale)
+        self._update_device_trends(scale, force=historical)
 
     async def update_trend_data(self, dt: datetime = None) -> None:
         """Update trend data of all scales from API.

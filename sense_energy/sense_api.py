@@ -146,11 +146,14 @@ class SenseableBase(object):
         
         return legacy_format
 
-    def _update_device_trends(self, scale: Scale):
+    def _update_device_trends(self, scale: Scale, force: bool = False):
         consumption = self._trend_data[scale].get("consumption", {})
         if not consumption.get("devices"):
             return
-        if update := self.trend_update(scale):
+        # The staleness guard assumes we are re-polling the *current* period;
+        # a historical fetch (explicit date) always looks stale and would be
+        # dropped, leaving the previous period's device values in place.
+        if not force and (update := self.trend_update(scale)):
             if update < self._trend_data_updated[scale]:
                 return
             self._trend_data_updated[scale] = update
