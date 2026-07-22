@@ -44,8 +44,20 @@ class Senseable(SenseableBase):
         """Create or set the SSL context. Use custom ssl verification, if specified."""
         if not ssl_verify:
             self.s.verify = False
+            self._wss_sslopt = {"cert_reqs": ssl.CERT_NONE}
         elif ssl_cafile:
             self.s.verify = ssl_cafile
+            self._wss_sslopt = {"ca_certs": ssl_cafile}
+        else:
+            # websocket-client uses the stdlib's default CA paths, which are empty on
+            # some Python builds (e.g. python.org macOS); use certifi's bundle like
+            # requests does so verification works everywhere
+            try:
+                import certifi
+
+                self._wss_sslopt = {"ca_certs": certifi.where()}
+            except ImportError:
+                self._wss_sslopt = {}
 
     def authenticate(self, username, password, ssl_verify=True, ssl_cafile=""):
         """Authenticate with username (email) and password. Optionally set SSL context as well.
@@ -158,7 +170,7 @@ class Senseable(SenseableBase):
             ws = create_connection(
                 url,
                 timeout=self.wss_timeout,
-                sslopt={"cert_reqs": ssl.CERT_NONE},
+                sslopt=self._wss_sslopt,
                 header={"Accept": "application/x-msgpack"},
             )
             unpacker = msgpack.Unpacker(raw=False)
