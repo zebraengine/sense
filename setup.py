@@ -4,6 +4,10 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 version = "{{VERSION_PLACEHOLDER}}"
+if version.startswith("{{"):
+    # not a release build (CI substitutes the placeholder from the release tag);
+    # fall back to a dev version so source/git installs work
+    version = "0.0.0.dev0"
 setup(
     name="sense_energy",
     packages=["sense_energy"],
