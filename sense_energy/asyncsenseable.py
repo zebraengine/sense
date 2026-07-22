@@ -28,7 +28,15 @@ def get_ssl_context(ssl_verify: bool, ssl_cafile: str) -> ssl.SSLContext:
     elif ssl_cafile:
         ssl_context = ssl.create_default_context(cafile=ssl_cafile)
     else:
-        ssl_context = ssl.create_default_context()
+        # aiohttp and websockets use the stdlib's default CA paths, which are empty
+        # on some Python builds (e.g. python.org macOS); use certifi's bundle when
+        # available so verification works everywhere
+        try:
+            import certifi
+
+            ssl_context = ssl.create_default_context(cafile=certifi.where())
+        except ImportError:
+            ssl_context = ssl.create_default_context()
     return ssl_context
 
 
@@ -73,6 +81,7 @@ class ASyncSenseable(SenseableBase):
             headers=self.headers,
             timeout=self.api_timeout,
             data=auth_data,
+            ssl=self.ssl_context,
         ) as resp:
             # check MFA code required
             if resp.status == 401:
@@ -108,6 +117,7 @@ class ASyncSenseable(SenseableBase):
             headers=self.headers,
             timeout=self.api_timeout,
             data=mfa_data,
+            ssl=self.ssl_context,
         ) as resp:
             # check for 200 return
             if resp.status != 200:
@@ -132,6 +142,7 @@ class ASyncSenseable(SenseableBase):
             headers=self.headers,
             timeout=self.api_timeout,
             data=renew_data,
+            ssl=self.ssl_context,
         ) as resp:
             # check for 200 return
             if resp.status != 200:
@@ -142,7 +153,9 @@ class ASyncSenseable(SenseableBase):
     async def logout(self) -> None:
         """Log out of Sense."""
         # Get auth token
-        async with self._client_session.get(API_URL + "logout", timeout=self.api_timeout) as resp:
+        async with self._client_session.get(
+            API_URL + "logout", timeout=self.api_timeout, ssl=self.ssl_context
+        ) as resp:
             # check for 200 return
             if resp.status != 200:
                 raise SenseAPIException(f"API Return Code: {resp.status}")
@@ -215,7 +228,7 @@ class ASyncSenseable(SenseableBase):
         timeout = aiohttp.ClientTimeout(total=self.api_timeout)
         try:
             async with self._client_session.get(
-                API_URL + url, headers=self.headers, timeout=timeout, data=payload
+                API_URL + url, headers=self.headers, timeout=timeout, data=payload, ssl=self.ssl_context
             ) as resp:
                 if not retry and resp.status == 401:
                     await self.renew_auth()
